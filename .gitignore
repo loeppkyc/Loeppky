@@ -1,0 +1,11 @@
+# Secrets — never commit these
+.streamlit/secrets.toml
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# Local env
+.env
