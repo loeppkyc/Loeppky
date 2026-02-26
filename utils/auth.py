@@ -31,6 +31,9 @@ USERS_HEADERS = [
     "Role", "Verified", "Verify Token", "Created At",
 ]
 
+LOG_SHEET   = "📋 Login Log"
+LOG_HEADERS = ["Timestamp", "Username", "Name", "Role", "Action"]
+
 ROLE_ADMIN    = "admin"
 ROLE_BUSINESS = "business"
 ROLE_PERSONAL = "personal"
@@ -77,6 +80,21 @@ def _find_user(username: str) -> dict | None:
         if u.get("Username", "").lower() == username.lower():
             return {**u, "_row": i}
     return None
+
+
+def _log_event(username: str, name: str, role: str, action: str):
+    """Append a login/logout event to the Login Log sheet."""
+    try:
+        ss = get_spreadsheet()
+        try:
+            ws = ss.worksheet(LOG_SHEET)
+        except Exception:
+            ws = ss.add_worksheet(title=LOG_SHEET, rows=2000, cols=len(LOG_HEADERS))
+            ws.append_row(LOG_HEADERS)
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ws.append_row([ts, username, name, role, action])
+    except Exception:
+        pass  # Never block login/logout due to logging failure
 
 
 def _find_by_token(token: str) -> dict | None:
@@ -229,9 +247,46 @@ def _sidebar():
     with st.sidebar:
         st.caption(f"👤 {name}  ·  {role}")
         if st.button("Logout", key="_sb_logout"):
+            _log_event(
+                st.session_state.get(_SK_USER, ""),
+                st.session_state.get(_SK_NAME, ""),
+                st.session_state.get(_SK_ROLE, ""),
+                "Logout",
+            )
             for k in (_SK_USER, _SK_NAME, _SK_ROLE, _SK_HEALTH):
                 st.session_state.pop(k, None)
             st.rerun()
+
+
+# ── Profile helpers ────────────────────────────────────────────────────────────
+
+def get_current_user() -> dict | None:
+    """Return the logged-in user's record from the sheet, or None."""
+    username = st.session_state.get(_SK_USER)
+    if not username:
+        return None
+    return _find_user(username)
+
+
+def change_password(username: str, current_pw: str, new_pw: str) -> tuple[bool, str]:
+    """Verify current password then update hash in sheet."""
+    u = _find_user(username)
+    if not u:
+        return False, "User not found."
+    if not _check_pw(current_pw, u.get("Password Hash", "")):
+        return False, "Current password is incorrect."
+    _update_user(u["_row"], **{"Password Hash": _hash_pw(new_pw)})
+    return True, "Password updated successfully."
+
+
+def update_display_name(username: str, new_name: str) -> tuple[bool, str]:
+    """Update the display name for a user."""
+    u = _find_user(username)
+    if not u:
+        return False, "User not found."
+    _update_user(u["_row"], **{"Name": new_name.strip()})
+    st.session_state[_SK_NAME] = new_name.strip()
+    return True, "Name updated."
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
@@ -312,6 +367,7 @@ def require_auth(level: str = "business"):
                         st.session_state[_SK_USER] = u["Username"]
                         st.session_state[_SK_NAME] = u["Name"]
                         st.session_state[_SK_ROLE] = r
+                        _log_event(u["Username"], u["Name"], r, "Login")
                         st.rerun()
 
         # ── Create Account ────────────────────────────────────────────────

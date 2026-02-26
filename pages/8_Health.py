@@ -12,6 +12,7 @@ from datetime import date, datetime
 from io import StringIO
 from utils.sheets import get_spreadsheet
 from utils.auth import require_auth
+from utils.alerts import check_sleep_alert, alerts_configured
 
 st.set_page_config(
     page_title="Health Records",
@@ -388,6 +389,17 @@ with tab_oura:
                     f"Imported **{total_added}** new day(s). "
                     f"Skipped **{total_skipped}** already-existing."
                 )
+                # Check sleep score alerts for newly imported rows
+                if total_added > 0:
+                    fresh = load_health(SH_OURA)
+                    fresh_person = sorted(
+                        [r for r in fresh if r.get("Person") == person],
+                        key=lambda x: x.get("Date", ""), reverse=True,
+                    )
+                    for r in fresh_person[:total_added]:
+                        score = r.get("Sleep Score", "")
+                        if score:
+                            check_sleep_alert(person, score)
                 st.rerun()
 
     # ── Charts ────────────────────────────────────────────────────────────────
