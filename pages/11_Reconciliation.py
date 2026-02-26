@@ -154,8 +154,8 @@ tab_payouts, tab_recon, tab_ar = st.tabs([
 with tab_payouts:
     st.subheader("💰 Amazon Payout Register")
     st.caption(
-        "Amazon pays out every ~14 days. Log each deposit and compare expected vs. actual. "
-        "Differences over $1.00 are flagged as discrepancies."
+        "Log each Amazon transfer as it hits your bank. You can request payouts on demand from Seller Central — "
+        "no fixed schedule needed. Differences over $1.00 are flagged as discrepancies."
     )
 
     # ── YTD metrics ───────────────────────────────────────────────────────────
@@ -183,7 +183,7 @@ with tab_payouts:
         with st.form("add_payout_form", clear_on_submit=True):
             fc1, fc2 = st.columns(2)
             with fc1:
-                p_period   = st.text_input("Period label (e.g. Feb 1–14, 2026)")
+                p_period   = st.text_input("Label (e.g. Feb 14 transfer, or any description)")
                 p_expected = st.number_input("Amount Expected ($)", min_value=0.0, step=0.01,
                                              help="From Amazon Seller Central → Payments")
                 p_account  = st.selectbox("Deposited to", ACCOUNTS, key="payout_account")
@@ -475,6 +475,6 @@ with tab_ar:
         total_ar = sum(p["_expected"] - p["_received"] for p in pending)
         st.markdown(f"**Total Outstanding AR: ${total_ar:,.2f}**")
         st.caption(
-            "💡 Amazon FBA payouts typically clear within 3–5 business days of the period end. "
-            "Anything over 14 days warrants checking Seller Central → Payments."
+            "💡 Once you request a transfer in Seller Central, funds typically arrive within 3–5 business days. "
+            "Anything over 7 days warrants checking Seller Central → Payments."
         )
