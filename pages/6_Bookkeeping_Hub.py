@@ -81,6 +81,14 @@ def load_transactions() -> list[dict]:
     return rows
 
 
+_MONTH_TO_KEY = {
+    "january": "2026-01", "february": "2026-02", "march": "2026-03",
+    "april": "2026-04",   "may": "2026-05",      "june": "2026-06",
+    "july": "2026-07",    "august": "2026-08",   "september": "2026-09",
+    "october": "2026-10", "november": "2026-11", "december": "2026-12",
+}
+
+
 @st.cache_data(ttl=60)
 def load_monthly_pl() -> dict:
     """Load Monthly P&L sheet — returns dict keyed by YYYY-MM."""
@@ -91,8 +99,12 @@ def load_monthly_pl() -> dict:
         return {}
     result = {}
     for row in data:
-        mk = str(row.get("Month", "")).strip()
+        raw_month = str(row.get("Month", "")).strip()
+        mk = _MONTH_TO_KEY.get(raw_month.lower()) or raw_month  # fallback to raw if already YYYY-MM
         if mk:
+            # Normalize revenue column name
+            if "Total Revenue" in row and "Amazon Revenue" not in row:
+                row["Amazon Revenue"] = row["Total Revenue"]
             result[mk] = row
     return result
 
