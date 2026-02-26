@@ -244,22 +244,62 @@ with tab_dash:
     # ── GST summary ───────────────────────────────────────────────────────────
     st.subheader("🇨🇦 GST Snapshot")
 
-    gst_collected_est = ytd_revenue * 0.05  # Amazon collects and remits as marketplace facilitator
-    gst_net = ytd_gst - gst_collected_est   # negative = refund likely
+    # Pull YTD COGS from Monthly P&L (negative values — convert to positive)
+    def _parse_dollar(v):
+        try:
+            return abs(float(str(v).replace(",", "").replace("$", "").replace("-", "").strip() or 0))
+        except (ValueError, TypeError):
+            return 0.0
 
-    gc1, gc2, gc3 = st.columns(3)
+    ytd_cogs = sum(
+        _parse_dollar(row.get("COGS", 0))
+        for row in pl_data.values()
+    )
+
+    gst_collected_est = ytd_revenue * 0.05  # Amazon collects and remits as marketplace facilitator
+
+    # Inventory ITCs — GST paid on non-book (taxable) inventory purchases
+    # Books are zero-rated in Canada. LEGO/other from Canadian retailers = 5% GST.
+    sc1, sc2 = st.columns([3, 1])
+    with sc1:
+        st.caption(
+            f"YTD COGS (from Monthly P&L): **${ytd_cogs:,.0f}** — "
+            "adjust the slider to reflect what % came from Canadian taxable sources "
+            "(e.g. LEGO/other from Costco/Walmart = taxable; books = zero-rated)."
+        )
+    with sc2:
+        taxable_pct = st.slider(
+            "Non-book COGS %", 0, 100, 80,
+            help="% of COGS from Canadian retailers where you paid 5% GST. "
+                 "Books = 0%. LEGO/other = ~100%.",
+            key="gst_taxable_pct",
+        ) / 100
+
+    cogs_itc = round(ytd_cogs * taxable_pct * 0.05, 2)
+    total_itc = ytd_gst + cogs_itc
+    gst_net   = total_itc - gst_collected_est  # positive = refund / over-collected
+
+    gc1, gc2, gc3, gc4 = st.columns(4)
     gc1.metric("GST Collected (est.)",
                f"${gst_collected_est:,.2f}",
                help="Estimated — Amazon remits this as marketplace facilitator. Confirm with accountant.")
-    gc2.metric("GST Paid (ITCs)",
+    gc2.metric("GST on Expenses (ITCs)",
                f"${ytd_gst:,.2f}",
-               help="Total GST you paid on business expenses — claimable as Input Tax Credits.")
-    gc3.metric("Est. Net GST Owing",
+               help="GST you paid on business expenses logged in the Transactions sheet.")
+    gc3.metric("GST on Inventory (est.)",
+               f"${cogs_itc:,.2f}",
+               help=f"Estimated GST on taxable COGS: ${ytd_cogs:,.0f} × {int(taxable_pct*100)}% × 5%. "
+                    "Adjust the slider above. Verify purchase receipts with your accountant.")
+    gc4.metric("Est. Net GST Owing",
                f"${gst_net:,.2f}",
                delta_color="inverse" if gst_net > 0 else "normal",
-               help="Positive = you owe CRA. Negative = likely a refund. Verify with accountant.")
+               help="Positive = you owe CRA. Negative = you over-paid (likely a refund). Verify with accountant.")
 
-    st.caption("⚠️ Confirm with your accountant whether Amazon's marketplace facilitator role means Line 103 = $0 on your GST return.")
+    st.caption(
+        f"Total ITCs (expenses + inventory est.): **${total_itc:,.2f}**  |  "
+        "⚠️ Confirm with your accountant whether Amazon's marketplace facilitator role means Line 103 = $0, "
+        "and whether inventory ITCs should be based on purchase date vs. sale date."
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════

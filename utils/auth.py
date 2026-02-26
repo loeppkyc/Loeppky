@@ -20,7 +20,7 @@ import secrets
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime
+from datetime import datetime, timedelta
 from utils.sheets import get_spreadsheet
 
 # ── Constants ──────────────────────────────────────────────────────────────────
@@ -38,10 +38,14 @@ ROLE_ADMIN    = "admin"
 ROLE_BUSINESS = "business"
 ROLE_PERSONAL = "personal"
 
-_SK_USER   = "_auth_username"
-_SK_NAME   = "_auth_name"
-_SK_ROLE   = "_auth_role"
-_SK_HEALTH = "_auth_health"
+_SK_USER    = "_auth_username"
+_SK_NAME    = "_auth_name"
+_SK_ROLE    = "_auth_role"
+_SK_HEALTH  = "_auth_health"
+_SK_EXPIRES = "_auth_expires"
+
+_SESSION_HOURS = 6
+_ALL_SK = (_SK_USER, _SK_NAME, _SK_ROLE, _SK_HEALTH, _SK_EXPIRES)
 
 
 # ── Sheet helpers ──────────────────────────────────────────────────────────────
@@ -253,7 +257,7 @@ def _sidebar():
                 st.session_state.get(_SK_ROLE, ""),
                 "Logout",
             )
-            for k in (_SK_USER, _SK_NAME, _SK_ROLE, _SK_HEALTH):
+            for k in _ALL_SK:
                 st.session_state.pop(k, None)
             st.rerun()
 
@@ -306,7 +310,17 @@ def require_auth(level: str = "business"):
     username = st.session_state.get(_SK_USER)
     role     = st.session_state.get(_SK_ROLE)
 
+    # Expire session after _SESSION_HOURS of inactivity
+    expires = st.session_state.get(_SK_EXPIRES)
+    if username and expires and datetime.now() > expires:
+        for k in _ALL_SK:
+            st.session_state.pop(k, None)
+        username = None
+        role = None
+
     if username and role:
+        # Refresh expiry on each active page load
+        st.session_state[_SK_EXPIRES] = datetime.now() + timedelta(hours=_SESSION_HOURS)
         if level == "business" and role not in (ROLE_BUSINESS, ROLE_ADMIN):
             st.error("🔒 This section requires a business account. Contact Colin to upgrade your access.")
             st.stop()
@@ -364,9 +378,10 @@ def require_auth(level: str = "business"):
                             "Contact Colin for business access."
                         )
                     else:
-                        st.session_state[_SK_USER] = u["Username"]
-                        st.session_state[_SK_NAME] = u["Name"]
-                        st.session_state[_SK_ROLE] = r
+                        st.session_state[_SK_USER]    = u["Username"]
+                        st.session_state[_SK_NAME]    = u["Name"]
+                        st.session_state[_SK_ROLE]    = r
+                        st.session_state[_SK_EXPIRES] = datetime.now() + timedelta(hours=_SESSION_HOURS)
                         _log_event(u["Username"], u["Name"], r, "Login")
                         st.rerun()
 
