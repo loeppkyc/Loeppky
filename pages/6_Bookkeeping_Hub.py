@@ -91,21 +91,42 @@ _MONTH_TO_KEY = {
 
 @st.cache_data(ttl=60)
 def load_monthly_pl() -> dict:
-    """Load Monthly P&L sheet — returns dict keyed by YYYY-MM."""
+    """Load Monthly P&L sheet — returns dict keyed by YYYY-MM.
+    Uses get_all_values() because row 1 is a title, not the header row.
+    Finds the real header by locating the row where col A == 'Month'.
+    """
     try:
         ws   = get_spreadsheet().worksheet("📊 Monthly P&L")
-        data = ws.get_all_records()
+        rows = ws.get_all_values()
     except Exception:
         return {}
+
+    # Find the header row
+    header = None
+    data_rows = []
+    for i, row in enumerate(rows):
+        if row and str(row[0]).strip().lower() == "month":
+            header = row
+            data_rows = rows[i + 1:]
+            break
+
+    if not header:
+        return {}
+
     result = {}
-    for row in data:
+    for raw in data_rows:
+        if not any(raw):
+            continue
+        padded = raw + [""] * max(0, len(header) - len(raw))
+        row = dict(zip(header, padded))
         raw_month = str(row.get("Month", "")).strip()
-        mk = _MONTH_TO_KEY.get(raw_month.lower()) or raw_month  # fallback to raw if already YYYY-MM
-        if mk:
-            # Normalize revenue column name
-            if "Total Revenue" in row and "Amazon Revenue" not in row:
-                row["Amazon Revenue"] = row["Total Revenue"]
-            result[mk] = row
+        mk = _MONTH_TO_KEY.get(raw_month.lower()) or raw_month
+        if not mk:
+            continue
+        # Normalize revenue column name for downstream code
+        if "Total Revenue" in row and "Amazon Revenue" not in row:
+            row["Amazon Revenue"] = row["Total Revenue"]
+        result[mk] = row
     return result
 
 
