@@ -295,8 +295,13 @@ with tab_dash:
                delta_color="inverse" if gst_net > 0 else "normal",
                help="Positive = you owe CRA. Negative = you over-paid (likely a refund). Verify with accountant.")
 
+    rule_of_thumb = ytd_revenue * 0.02
+    variance      = gst_net - rule_of_thumb
     st.caption(
-        f"Total ITCs (expenses + inventory est.): **${total_itc:,.2f}**  |  "
+        f"Total ITCs (expenses + inventory est.): **${total_itc:,.2f}**  ·  "
+        f"📌 Accountant's rule of thumb (~2% of revenue): **${rule_of_thumb:,.0f}**  ·  "
+        f"Variance from rule: **{'+ ' if variance >= 0 else ''}${variance:,.0f}** "
+        f"({'over' if variance >= 0 else 'under'} estimate)  |  "
         "⚠️ Confirm with your accountant whether Amazon's marketplace facilitator role means Line 103 = $0, "
         "and whether inventory ITCs should be based on purchase date vs. sale date."
     )
