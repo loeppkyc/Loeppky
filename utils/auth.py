@@ -18,10 +18,16 @@ import streamlit as st
 import bcrypt
 import secrets
 import smtplib
+import json
+import hmac as _hmac_mod
+import hashlib
+import time
+import base64
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 from utils.sheets import get_spreadsheet
+import extra_streamlit_components as stx
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -44,8 +50,44 @@ _SK_ROLE    = "_auth_role"
 _SK_HEALTH  = "_auth_health"
 _SK_EXPIRES = "_auth_expires"
 
-_SESSION_HOURS = 6
+_SESSION_HOURS  = 6
+_COOKIE_NAME    = "loeppky_auth"
 _ALL_SK = (_SK_USER, _SK_NAME, _SK_ROLE, _SK_HEALTH, _SK_EXPIRES)
+
+
+# ── Cookie-based session helpers ───────────────────────────────────────────────
+
+def _session_secret() -> str:
+    try:
+        return str(st.secrets["session"]["secret"])
+    except Exception:
+        return "loeppky-session-2026-default"
+
+
+def _make_token(username: str, name: str, role: str) -> str:
+    exp = int(time.time()) + _SESSION_HOURS * 3600
+    payload = json.dumps({"u": username, "n": name, "r": role, "exp": exp}, separators=(",", ":"))
+    sig = _hmac_mod.new(_session_secret().encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return base64.b64encode(f"{payload}|{sig}".encode()).decode()
+
+
+def _verify_token(token: str) -> dict | None:
+    try:
+        raw = base64.b64decode(token.encode()).decode()
+        payload_str, sig = raw.rsplit("|", 1)
+        expected = _hmac_mod.new(_session_secret().encode(), payload_str.encode(), hashlib.sha256).hexdigest()
+        if not _hmac_mod.compare_digest(sig, expected):
+            return None
+        payload = json.loads(payload_str)
+        if time.time() > payload["exp"]:
+            return None
+        return payload
+    except Exception:
+        return None
+
+
+def _cm():
+    return stx.CookieManager(key="loeppky_cm")
 
 
 # ── Sheet helpers ──────────────────────────────────────────────────────────────
@@ -257,6 +299,10 @@ def _sidebar():
                 st.session_state.get(_SK_ROLE, ""),
                 "Logout",
             )
+            try:
+                _cm().delete(_COOKIE_NAME)
+            except Exception:
+                pass
             for k in _ALL_SK:
                 st.session_state.pop(k, None)
             st.rerun()
@@ -317,6 +363,23 @@ def require_auth(level: str = "business"):
             st.session_state.pop(k, None)
         username = None
         role = None
+
+    # Try to restore session from browser cookie (survives server restarts/deploys)
+    if not username:
+        try:
+            cm  = _cm()
+            raw = cm.get(_COOKIE_NAME)
+            if raw:
+                payload = _verify_token(str(raw))
+                if payload:
+                    st.session_state[_SK_USER]    = payload["u"]
+                    st.session_state[_SK_NAME]    = payload["n"]
+                    st.session_state[_SK_ROLE]    = payload["r"]
+                    st.session_state[_SK_EXPIRES] = datetime.now() + timedelta(hours=_SESSION_HOURS)
+                    username = payload["u"]
+                    role     = payload["r"]
+        except Exception:
+            pass  # Cookie component not yet loaded — will retry on next rerun
 
     if username and role:
         # Refresh expiry on each active page load
@@ -382,6 +445,14 @@ def require_auth(level: str = "business"):
                         st.session_state[_SK_NAME]    = u["Name"]
                         st.session_state[_SK_ROLE]    = r
                         st.session_state[_SK_EXPIRES] = datetime.now() + timedelta(hours=_SESSION_HOURS)
+                        try:
+                            _cm().set(
+                                _COOKIE_NAME,
+                                _make_token(u["Username"], u["Name"], r),
+                                expires_at=datetime.now() + timedelta(hours=_SESSION_HOURS),
+                            )
+                        except Exception:
+                            pass
                         _log_event(u["Username"], u["Name"], r, "Login")
                         st.rerun()
 
