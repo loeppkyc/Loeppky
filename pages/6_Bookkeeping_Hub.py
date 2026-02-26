@@ -120,9 +120,9 @@ def load_monthly_pl() -> dict:
         padded = raw + [""] * max(0, len(header) - len(raw))
         row = dict(zip(header, padded))
         raw_month = str(row.get("Month", "")).strip()
-        mk = _MONTH_TO_KEY.get(raw_month.lower()) or raw_month
+        mk = _MONTH_TO_KEY.get(raw_month.lower())  # None if not a valid month name
         if not mk:
-            continue
+            continue  # skip header repeats, totals, blank rows
         # Normalize revenue column name for downstream code
         if "Total Revenue" in row and "Amazon Revenue" not in row:
             row["Amazon Revenue"] = row["Total Revenue"]
