@@ -27,7 +27,11 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 from utils.sheets import get_spreadsheet
-import extra_streamlit_components as stx
+try:
+    import extra_streamlit_components as stx
+    _COOKIES_AVAILABLE = True
+except ImportError:
+    _COOKIES_AVAILABLE = False
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -87,6 +91,8 @@ def _verify_token(token: str) -> dict | None:
 
 
 def _cm():
+    if not _COOKIES_AVAILABLE:
+        return None
     return stx.CookieManager(key="loeppky_cm")
 
 
@@ -300,7 +306,9 @@ def _sidebar():
                 "Logout",
             )
             try:
-                _cm().delete(_COOKIE_NAME)
+                cm = _cm()
+                if cm is not None:
+                    cm.delete(_COOKIE_NAME)
             except Exception:
                 pass
             for k in _ALL_SK:
@@ -368,7 +376,7 @@ def require_auth(level: str = "business"):
     if not username:
         try:
             cm  = _cm()
-            raw = cm.get(_COOKIE_NAME)
+            raw = cm.get(_COOKIE_NAME) if cm is not None else None
             if raw:
                 payload = _verify_token(str(raw))
                 if payload:
@@ -446,11 +454,13 @@ def require_auth(level: str = "business"):
                         st.session_state[_SK_ROLE]    = r
                         st.session_state[_SK_EXPIRES] = datetime.now() + timedelta(hours=_SESSION_HOURS)
                         try:
-                            _cm().set(
-                                _COOKIE_NAME,
-                                _make_token(u["Username"], u["Name"], r),
-                                expires_at=datetime.now() + timedelta(hours=_SESSION_HOURS),
-                            )
+                            cm = _cm()
+                            if cm is not None:
+                                cm.set(
+                                    _COOKIE_NAME,
+                                    _make_token(u["Username"], u["Name"], r),
+                                    expires_at=datetime.now() + timedelta(hours=_SESSION_HOURS),
+                                )
                         except Exception:
                             pass
                         _log_event(u["Username"], u["Name"], r, "Login")
