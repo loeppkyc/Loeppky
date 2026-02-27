@@ -21,6 +21,25 @@ STATUSES  = ["All", "Unlisted", "Listed", "Sold"]
 FEE_RATE  = 0.40   # Amazon ~40% of list price (fees + referral)
 
 
+@st.cache_data(ttl=300)
+def load_sellerboard_snapshot() -> dict:
+    try:
+        ws   = get_spreadsheet().worksheet("📊 Sellerboard Snapshot")
+        rows = ws.get_all_records()
+        if not rows:
+            return {}
+        latest = rows[-1]
+        return {
+            "date":       latest.get("Date", ""),
+            "units":      int(float(str(latest.get("Units", 0)).replace(",", "") or 0)),
+            "cogs":       float(str(latest.get("COGS ($)", 0)).replace(",", "") or 0),
+            "pot_sales":  float(str(latest.get("Potential Sales ($)", 0)).replace(",", "") or 0),
+            "pot_profit": float(str(latest.get("Potential Profit ($)", 0)).replace(",", "") or 0),
+        }
+    except Exception:
+        return {}
+
+
 @st.cache_data(ttl=60)
 def load_inventory() -> pd.DataFrame:
     ws   = get_spreadsheet().worksheet("📦 Book Inventory")
@@ -41,6 +60,22 @@ def load_inventory() -> pd.DataFrame:
 # ─── Page ─────────────────────────────────────────────────────────────────────
 
 st.title("📋 Inventory")
+
+# ─── Sellerboard Snapshot ─────────────────────────────────────────────────────
+
+snap = load_sellerboard_snapshot()
+if snap:
+    st.markdown('<div class="section-label">Sellerboard Snapshot</div>',
+                unsafe_allow_html=True)
+    s1, s2, s3, s4 = st.columns(4)
+    s1.metric("FBA Units",        f"{snap['units']:,}")
+    s2.metric("COGS",             f"${snap['cogs']:,.2f}")
+    s3.metric("Potential Sales",  f"${snap['pot_sales']:,.2f}")
+    s4.metric("Potential Profit", f"${snap['pot_profit']:,.2f}")
+    st.caption(f"Sellerboard as of **{snap['date']}**  ·  "
+               f"Potential margin: **{snap['pot_profit']/snap['pot_sales']*100:.1f}%**  ·  "
+               f"Sales & profit update Mondays")
+    st.divider()
 
 c1, c2, c3 = st.columns([2, 2, 1])
 search        = c1.text_input("Search title / author", placeholder="Search...")
