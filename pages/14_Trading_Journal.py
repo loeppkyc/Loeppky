@@ -41,6 +41,16 @@ def _ws():
 
 
 @st.cache_data(ttl=120)
+def load_account_balance() -> float:
+    try:
+        ws  = _ws()
+        val = ws.acell("B10").value
+        return float(str(val).replace(",", "").replace("$", ""))
+    except Exception:
+        return 0.0
+
+
+@st.cache_data(ttl=120)
 def load_trades() -> pd.DataFrame:
     ws       = _ws()
     all_vals = ws.get_all_values()
@@ -107,7 +117,8 @@ if st.button("🔄 Refresh"):
     st.cache_data.clear()
     st.rerun()
 
-df = load_trades()
+df              = load_trades()
+account_balance = load_account_balance()
 
 # Only trades with a P/L recorded
 df_s = df[df["Points P/L"].notna()].copy()
@@ -146,17 +157,18 @@ for res in df_s["Result"].iloc[::-1]:
 st.markdown('<div class="section-label">Performance Dashboard</div>',
             unsafe_allow_html=True)
 
-c1, c2, c3, c4, c5, c6 = st.columns(6)
+c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
 wr_diff = win_rate - 60
-c1.metric("Win Rate",     f"{win_rate:.1f}%",
+c1.metric("Account Balance", f"${account_balance:,.2f} USD")
+c2.metric("Win Rate",     f"{win_rate:.1f}%",
           delta=f"{wr_diff:+.1f}% vs 60% goal",
           delta_color="normal" if wr_diff >= 0 else "inverse")
-c2.metric("Trades",       str(total))
-c3.metric("W / L / BE",   f"{win_count} / {loss_count} / {be_count}")
-c4.metric("Total Points", f"{total_pts:+.2f}")
-c5.metric("Total P&L",    f"${total_pnl:+.2f}")
+c3.metric("Trades",       str(total))
+c4.metric("W / L / BE",   f"{win_count} / {loss_count} / {be_count}")
+c5.metric("Total Points", f"{total_pts:+.2f}")
+c6.metric("Total P&L",    f"${total_pnl:+.2f}")
 rr_label = "above 2R goal" if rr >= 2 else "below 2R goal"
-c6.metric("Avg R:R",      f"{rr:.2f}:1",
+c7.metric("Avg R:R",      f"{rr:.2f}:1",
           delta=f"{rr_label}",
           delta_color="normal" if rr >= 2 else "inverse")
 
