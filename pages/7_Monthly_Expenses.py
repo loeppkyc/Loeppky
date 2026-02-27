@@ -35,6 +35,8 @@ CATEGORIES = [
     "Office Supplies",
     "Phone & Internet",
     "Insurance",
+    "Loan Repayment — BDC",
+    "Loan Repayment — Tesla",
     "Other Business Expense",
 ]
 
@@ -56,6 +58,8 @@ ZERO_GST = {
     "Bank Fees",
     "Insurance",
     "Amazon PPC / Advertising",
+    "Loan Repayment — BDC",
+    "Loan Repayment — Tesla",
 }
 
 # Canadian tax rates — label → decimal rate

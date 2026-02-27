@@ -23,6 +23,7 @@ import hmac as _hmac_mod
 import hashlib
 import time
 import base64
+from pathlib import Path
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
@@ -54,8 +55,10 @@ _SK_ROLE    = "_auth_role"
 _SK_HEALTH  = "_auth_health"
 _SK_EXPIRES = "_auth_expires"
 
-_SESSION_HOURS  = 6
-_COOKIE_NAME    = "loeppky_auth"
+_SESSION_HOURS        = 6
+_LOCAL_SESSION_HOURS  = 720   # 30 days — for local file persistence
+_COOKIE_NAME          = "loeppky_auth"
+_LOCAL_SESSION_FILE   = Path.home() / ".loeppky_session"
 _ALL_SK = (_SK_USER, _SK_NAME, _SK_ROLE, _SK_HEALTH, _SK_EXPIRES)
 
 
@@ -94,6 +97,37 @@ def _cm():
     if not _COOKIES_AVAILABLE:
         return None
     return stx.CookieManager(key="loeppky_cm")
+
+
+# ── Local file session (survives browser/server restarts) ──────────────────────
+
+def _save_local_session(username: str, name: str, role: str) -> None:
+    """Write a signed session token to ~/.loeppky_session."""
+    try:
+        exp = int(time.time()) + _LOCAL_SESSION_HOURS * 3600
+        payload = json.dumps({"u": username, "n": name, "r": role, "exp": exp}, separators=(",", ":"))
+        sig = _hmac_mod.new(_session_secret().encode(), payload.encode(), hashlib.sha256).hexdigest()
+        token = base64.b64encode(f"{payload}|{sig}".encode()).decode()
+        _LOCAL_SESSION_FILE.write_text(token, encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _load_local_session() -> dict | None:
+    """Read and verify ~/.loeppky_session. Returns payload dict or None."""
+    try:
+        token = _LOCAL_SESSION_FILE.read_text(encoding="utf-8").strip()
+        return _verify_token(token)
+    except Exception:
+        return None
+
+
+def _clear_local_session() -> None:
+    """Delete the local session file."""
+    try:
+        _LOCAL_SESSION_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 # ── Sheet helpers ──────────────────────────────────────────────────────────────
@@ -305,6 +339,7 @@ def _sidebar():
                 st.session_state.get(_SK_ROLE, ""),
                 "Logout",
             )
+            _clear_local_session()
             try:
                 cm = _cm()
                 if cm is not None:
@@ -372,7 +407,18 @@ def require_auth(level: str = "business"):
         username = None
         role = None
 
-    # Try to restore session from browser cookie (survives server restarts/deploys)
+    # Try to restore session from local file (primary — survives browser/server restarts)
+    if not username:
+        payload = _load_local_session()
+        if payload:
+            st.session_state[_SK_USER]    = payload["u"]
+            st.session_state[_SK_NAME]    = payload["n"]
+            st.session_state[_SK_ROLE]    = payload["r"]
+            st.session_state[_SK_EXPIRES] = datetime.now() + timedelta(hours=_SESSION_HOURS)
+            username = payload["u"]
+            role     = payload["r"]
+
+    # Try to restore session from browser cookie (fallback)
     if not username:
         try:
             cm  = _cm()
@@ -453,6 +499,7 @@ def require_auth(level: str = "business"):
                         st.session_state[_SK_NAME]    = u["Name"]
                         st.session_state[_SK_ROLE]    = r
                         st.session_state[_SK_EXPIRES] = datetime.now() + timedelta(hours=_SESSION_HOURS)
+                        _save_local_session(u["Username"], u["Name"], r)
                         try:
                             cm = _cm()
                             if cm is not None:

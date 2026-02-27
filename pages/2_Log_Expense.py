@@ -29,6 +29,8 @@ CATEGORIES = [
     "Office Supplies",
     "Phone & Internet",
     "Insurance",
+    "Loan Repayment — BDC",
+    "Loan Repayment — Tesla",
     "Other Business Expense",
 ]
 
@@ -50,6 +52,8 @@ ZERO_GST_CATEGORIES = {
     "Bank Fees",                    # Financial services — no GST
     "Insurance",                    # Insurance — no GST
     "Amazon PPC / Advertising",     # Amazon invoices in USD, no CA GST
+    "Loan Repayment — BDC",         # Loan payments — no GST
+    "Loan Repayment — Tesla",       # Loan payments — no GST
 }
 
 
