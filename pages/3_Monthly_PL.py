@@ -70,7 +70,7 @@ def get_row(label_fragment: str) -> list[float]:
         return [0.0] * len(available_months)
     return [float(match.iloc[0].get(m, 0) or 0) for m in available_months]
 
-payout   = get_row("Estimated Payout")
+payout   = get_row("Est. Net Payout")
 expenses = get_row("Total Business Expenses")
 profit   = get_row("Operating Profit")
 
