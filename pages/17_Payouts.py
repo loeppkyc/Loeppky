@@ -31,8 +31,9 @@ def load_payouts() -> pd.DataFrame:
     data = ws.get_all_records()
     if not data:
         return pd.DataFrame(columns=[
-            "Date Received", "Period Label", "Amount Expected ($)",
-            "Amount Received ($)", "Difference ($)", "Account", "Status", "Notes"
+            "Date Received", "Period Label", "Period Start", "Period End",
+            "Amount Expected ($)", "Amount Received ($)", "Difference ($)",
+            "Account", "Status", "Notes", "Group ID"
         ])
     df = pd.DataFrame(data)
     for col in ["Amount Expected ($)", "Amount Received ($)", "Difference ($)"]:
@@ -57,7 +58,7 @@ def load_amazon_daily() -> pd.DataFrame:
 # ─── Page ─────────────────────────────────────────────────────────────────────
 
 st.title("💰 Payout Register")
-st.caption("Log each Amazon disbursement that hits your TD account. Compare actual vs estimated.")
+st.caption("Amazon disbursements are auto-synced each morning by daily_pl.py. Use the form below only if you need to add one manually.")
 
 col_r, _ = st.columns([1, 5])
 with col_r:
