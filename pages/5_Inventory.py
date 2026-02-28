@@ -25,18 +25,18 @@ STATUSES = ["All", "Unlisted", "Listed", "Sold"]
 
 @st.cache_data(ttl=300)
 def load_sellerboard_snapshot() -> dict:
-    """FBA units + potential sales/profit from the manually-updated snapshot."""
+    """FBA units + potential sales/profit from the SP-API inventory snapshot."""
     try:
-        ws   = get_spreadsheet().worksheet("📊 Sellerboard Snapshot")
+        ws   = get_spreadsheet().worksheet("📦 Inventory Snapshot")
         rows = ws.get_all_records()
         if not rows:
             return {}
         latest = rows[-1]
         return {
             "date":       latest.get("Date", ""),
-            "units":      int(float(str(latest.get("Units", 0)).replace(",", "") or 0)),
-            "pot_sales":  float(str(latest.get("Potential Sales ($)", 0)).replace(",", "") or 0),
-            "pot_profit": float(str(latest.get("Potential Profit ($)", 0)).replace(",", "") or 0),
+            "units":      int(float(str(latest.get("TotalUnits", 0)).replace(",", "") or 0)),
+            "pot_sales":  float(str(latest.get("EstGrossRevenue", 0)).replace(",", "") or 0),
+            "pot_profit": float(str(latest.get("EstNetProfit", 0)).replace(",", "") or 0),
         }
     except Exception:
         return {}
@@ -152,14 +152,14 @@ with st.expander("📦 Pallet purchase history"):
     else:
         st.info("No pallet data found.")
 
-# Sellerboard potential (updated Mondays)
+# Inventory snapshot (updated weekly by SP-API script)
 if snap and snap.get("pot_sales", 0) > 0:
     margin = snap["pot_profit"] / snap["pot_sales"] * 100
     st.caption(
-        f"Sellerboard (as of **{snap['date']}**):  "
-        f"Potential Sales **${snap['pot_sales']:,.2f}**  ·  "
-        f"Potential Profit **${snap['pot_profit']:,.2f}**  ·  "
-        f"Margin **{margin:.1f}%**  ·  Updates Mondays"
+        f"Snapshot as of **{snap['date']}**:  "
+        f"Est. Gross **${snap['pot_sales']:,.2f}**  ·  "
+        f"Est. Net Profit **${snap['pot_profit']:,.2f}**  ·  "
+        f"Margin **{margin:.1f}%**  ·  Updates weekly"
     )
 
 # Log new pallet purchase
