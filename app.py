@@ -260,15 +260,42 @@ c5.metric("Listed on FBA",    str(listed))
 st.divider()
 
 
-# ─── Daily sales chart ────────────────────────────────────────────────────────
+# ─── Sales chart with time frame selector ─────────────────────────────────────
 
-if not df_month.empty and len(df_month) > 1:
-    st.markdown('<div class="section-label">Daily Sales This Month</div>',
-                unsafe_allow_html=True)
-    chart = df_month[["Date", "SalesOrganic", "EstimatedPayout"]].copy()
+today = now.date()
+
+tf_label = st.radio(
+    "Time frame",
+    ["Today", "7 Days", "MTD", "YTD"],
+    index=2,
+    horizontal=True,
+    label_visibility="collapsed",
+)
+
+if not df.empty:
+    if tf_label == "Today":
+        chart_df = df[df["Date"].dt.date == today]
+    elif tf_label == "7 Days":
+        chart_df = df[df["Date"].dt.date >= (today - timedelta(days=6))]
+    elif tf_label == "MTD":
+        chart_df = df_month
+    else:  # YTD
+        chart_df = df[df["Date"].dt.year == now.year]
+else:
+    chart_df = pd.DataFrame()
+
+st.markdown(f'<div class="section-label">Sales — {tf_label}</div>',
+            unsafe_allow_html=True)
+
+if not chart_df.empty:
+    chart = chart_df[["Date", "SalesOrganic", "EstimatedPayout"]].copy()
     chart = chart.rename(columns={"SalesOrganic": "Sales", "EstimatedPayout": "Est. Payout"})
     chart = chart.set_index("Date")
     st.line_chart(chart, color=["#2d6a9f", "#c89b37"])
+elif tf_label == "Today":
+    st.info("Today's data not yet available — updates at 6am daily.")
+else:
+    st.info(f"No data found for {tf_label}.")
 
 st.divider()
 
