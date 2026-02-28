@@ -56,7 +56,7 @@ _SK_HEALTH  = "_auth_health"
 _SK_EXPIRES = "_auth_expires"
 
 _SESSION_HOURS        = 6
-_LOCAL_SESSION_HOURS  = 720   # 30 days — for local file persistence
+_LOCAL_SESSION_HOURS  = 6     # matches session — rolling 6h idle timeout
 _COOKIE_NAME          = "loeppky_auth"
 _LOCAL_SESSION_FILE   = Path.home() / ".loeppky_session"
 _ALL_SK = (_SK_USER, _SK_NAME, _SK_ROLE, _SK_HEALTH, _SK_EXPIRES)
@@ -417,6 +417,8 @@ def require_auth(level: str = "business"):
             st.session_state[_SK_EXPIRES] = datetime.now() + timedelta(hours=_SESSION_HOURS)
             username = payload["u"]
             role     = payload["r"]
+            # Refresh the file so the 6h window is rolling (active use = stay logged in)
+            _save_local_session(payload["u"], payload["n"], payload["r"])
 
     # Try to restore session from browser cookie (fallback)
     if not username:
