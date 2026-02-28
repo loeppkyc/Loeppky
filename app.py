@@ -287,6 +287,14 @@ else:
 st.markdown(f'<div class="section-label">Sales — {tf_label}</div>',
             unsafe_allow_html=True)
 
+if tf_label == "YTD" and not chart_df.empty:
+    ytd_total = float(chart_df["SalesOrganic"].sum())
+    ytd_payout = float(chart_df["EstimatedPayout"].sum())
+    yc1, yc2, yc3 = st.columns(3)
+    yc1.metric("YTD Sales",       f"${ytd_total:,.2f}")
+    yc2.metric("YTD Est. Payout", f"${ytd_payout:,.2f}")
+    yc3.metric("YTD Days w/ Sales", int((chart_df["SalesOrganic"] > 0).sum()))
+
 if not chart_df.empty:
     chart = chart_df[["Date", "SalesOrganic", "EstimatedPayout"]].copy()
     chart = chart.rename(columns={"SalesOrganic": "Sales", "EstimatedPayout": "Est. Payout"})
