@@ -238,10 +238,10 @@ st.divider()
 st.markdown(f'<div class="section-label">Yesterday — {yesterday.strftime("%B %d")}</div>',
             unsafe_allow_html=True)
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Sales",       f"${y_sales:,.2f}")
-c2.metric("Est. Payout", f"${y_payout:,.2f}")
-c3.metric("Units Sold",  str(y_units))
-c4.metric("Orders",      str(y_orders))
+c1.metric("Sales (CAD)",       f"${y_sales:,.2f}")
+c2.metric("Est. Payout (CAD)", f"${y_payout:,.2f}")
+c3.metric("Units Sold",        str(y_units))
+c4.metric("Orders",            str(y_orders))
 
 st.divider()
 
@@ -251,11 +251,11 @@ st.divider()
 st.markdown(f'<div class="section-label">Month to Date — {now.strftime("%B %Y")}</div>',
             unsafe_allow_html=True)
 c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric("MTD Sales",        f"${mtd_sales:,.2f}")
-c2.metric("MTD Est. Payout",  f"${mtd_payout:,.2f}")
-c3.metric("MTD Gross Profit", f"${mtd_profit:,.2f}")
-c4.metric("Unlisted Books",   str(unlisted))
-c5.metric("Listed on FBA",    str(listed))
+c1.metric("MTD Sales (CAD)",        f"${mtd_sales:,.2f}")
+c2.metric("MTD Est. Payout (CAD)",  f"${mtd_payout:,.2f}")
+c3.metric("MTD Gross Profit (CAD)", f"${mtd_profit:,.2f}")
+c4.metric("Unlisted Books",         str(unlisted))
+c5.metric("Listed on FBA",          str(listed))
 
 st.divider()
 
@@ -275,31 +275,76 @@ tf_label = st.radio(
 if not df.empty:
     if tf_label == "Today":
         chart_df = df[df["Date"].dt.date == today]
+        prior_df = df[df["Date"].dt.date == yesterday]
     elif tf_label == "7 Days":
         chart_df = df[df["Date"].dt.date >= (today - timedelta(days=6))]
+        prior_df = df[
+            (df["Date"].dt.date >= (today - timedelta(days=13))) &
+            (df["Date"].dt.date <= (today - timedelta(days=7)))
+        ]
     elif tf_label == "MTD":
         chart_df = df_month
+        _first     = now.replace(day=1).date()
+        _prev_last = _first - timedelta(days=1)
+        _prev_first = _prev_last.replace(day=1)
+        _prev_end  = _prev_last if today.day > _prev_last.day else _prev_first.replace(day=today.day)
+        prior_df = df[
+            (df["Date"].dt.date >= _prev_first) &
+            (df["Date"].dt.date <= _prev_end)
+        ]
     else:  # YTD
         chart_df = df[df["Date"].dt.year == now.year]
+        prior_df = pd.DataFrame()  # 2025 data is monthly — skip YTD delta
 else:
     chart_df = pd.DataFrame()
+    prior_df = pd.DataFrame()
 
 st.markdown(f'<div class="section-label">Sales — {tf_label}</div>',
             unsafe_allow_html=True)
 
 if not chart_df.empty:
-    _sales  = float(chart_df["SalesOrganic"].sum())
-    _payout = float(chart_df["EstimatedPayout"].sum())
-    _days   = int((chart_df["SalesOrganic"] > 0).sum())
-    _label  = tf_label
-    sc1, sc2, sc3 = st.columns(3)
-    sc1.metric(f"{_label} Sales",        f"${_sales:,.2f}")
-    sc2.metric(f"{_label} Est. Payout",  f"${_payout:,.2f}")
-    sc3.metric(f"{_label} Days w/ Sales", str(_days))
+    _sales   = float(chart_df["SalesOrganic"].sum())
+    _payout  = float(chart_df["EstimatedPayout"].sum())
+    _units   = int(chart_df["UnitsOrganic"].sum())
+    _orders  = int(chart_df["Orders"].sum())
+    _days    = int((chart_df["SalesOrganic"] > 0).sum())
+    _avg_u   = round(_units / _orders, 2) if _orders > 0 else 0.0
+    _avg_s   = round(_sales / _orders, 2) if _orders > 0 else 0.0
+
+    def _dpct(curr, prev):
+        return f"{(curr - prev) / prev * 100:+.1f}%" if prev != 0 else None
+
+    if not prior_df.empty:
+        p_sales  = float(prior_df["SalesOrganic"].sum())
+        p_payout = float(prior_df["EstimatedPayout"].sum())
+        p_units  = int(prior_df["UnitsOrganic"].sum())
+        p_orders = int(prior_df["Orders"].sum())
+        p_avg_u  = round(p_units / p_orders, 2) if p_orders > 0 else 0.0
+        p_avg_s  = round(p_sales / p_orders, 2) if p_orders > 0 else 0.0
+        d_sales  = _dpct(_sales,  p_sales)
+        d_payout = _dpct(_payout, p_payout)
+        d_units  = _dpct(_units,  p_units)
+        d_orders = _dpct(_orders, p_orders)
+        d_avg_u  = _dpct(_avg_u,  p_avg_u)
+        d_avg_s  = _dpct(_avg_s,  p_avg_s)
+    else:
+        d_sales = d_payout = d_units = d_orders = d_avg_u = d_avg_s = None
+
+    mc1, mc2, mc3, mc4 = st.columns(4)
+    mc1.metric("Sales (CAD)",         f"${_sales:,.2f}",  delta=d_sales)
+    mc2.metric("Est. Payout (CAD)",   f"${_payout:,.2f}", delta=d_payout)
+    mc3.metric("Units Sold",          str(_units),        delta=d_units)
+    mc4.metric("Orders",              str(_orders),       delta=d_orders)
+
+    mc5, mc6, mc7, mc8 = st.columns(4)
+    mc5.metric("Avg Units/Order",       f"{_avg_u:.2f}",    delta=d_avg_u)
+    mc6.metric("Avg Sales/Order (CAD)", f"${_avg_s:,.2f}",  delta=d_avg_s)
+    mc7.metric("Days w/ Sales",         str(_days))
+    mc8.write("")
 
 if not chart_df.empty:
     chart = chart_df[["Date", "SalesOrganic", "EstimatedPayout"]].copy()
-    chart = chart.rename(columns={"SalesOrganic": "Sales", "EstimatedPayout": "Est. Payout"})
+    chart = chart.rename(columns={"SalesOrganic": "Sales (CAD)", "EstimatedPayout": "Est. Payout (CAD)"})
     chart = chart.set_index("Date")
     st.line_chart(chart, color=["#2d6a9f", "#c89b37"])
 elif tf_label == "Today":
